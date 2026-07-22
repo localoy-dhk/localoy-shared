@@ -1,0 +1,32 @@
+{
+  "name": "@localoy-dhk/shared",
+  "version": "0.1.0",
+  "description": "Canonical shared enums for the Localoy microservices ecosystem.",
+  "license": "UNLICENSED",
+  "private": false,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/localoy-dhk/localoy-shared.git",
+    "directory": "js"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

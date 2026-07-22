@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "localoy-shared"
+dynamic = ["version"]
+description = "Canonical shared enums for the Localoy microservices ecosystem."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "UNLICENSED" }
+authors = [{ name = "Localoy" }]
+keywords = ["localoy", "enums", "shared"]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/localoy-dhk/localoy-shared"
+Source = "https://github.com/localoy-dhk/localoy-shared/tree/main/python"
+
+# The single source of truth for the version is the repo-root VERSION file.
+# generate.py writes it into localoy_shared/__init__.py; hatchling reads it
+# from there, so the Python and JS packages can never drift apart.
+[tool.hatch.version]
+path = "localoy_shared/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["localoy_shared"]
+
+[tool.hatch.build.targets.sdist]
+include = ["localoy_shared", "README.md"]

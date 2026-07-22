@@ -1,0 +1,4 @@
+{
+  "EventType": ["indoor", "outdoor"],
+  "EventStatus": ["draft", "published", "cancelled"]
+}

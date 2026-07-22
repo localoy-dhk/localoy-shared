@@ -1,0 +1,72 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # create the GitHub Release
+  packages: write # publish to GitHub Packages
+
+jobs:
+  release:
+    name: publish ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # A tag is a contract: v1.4.0 must contain VERSION == 1.4.0, and the
+      # generated files must match enums.json exactly. Consumers pip-install
+      # straight from the tag, so there is no later chance to fix it.
+      - name: Tag must match VERSION
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          FILE_VERSION="$(cat VERSION)"
+          if [ "$TAG_VERSION" != "$FILE_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match VERSION ($FILE_VERSION)."
+            exit 1
+          fi
+          echo "version=$FILE_VERSION" >> "$GITHUB_ENV"
+
+      - name: Generated files must be current
+        run: python generate.py --check
+
+      - name: Build the Python package
+        run: |
+          pip install --quiet build
+          python -m build python/
+
+      - name: Built wheel must carry the tag version
+        run: |
+          test -f "python/dist/localoy_shared-${version}-py3-none-any.whl" \
+            || { echo "::error::No wheel for version ${version}"; ls python/dist; exit 1; }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: https://npm.pkg.github.com
+          scope: '@localoy-dhk'
+          cache: npm
+          cache-dependency-path: js/package-lock.json
+
+      - name: Build and publish @localoy-dhk/shared
+        working-directory: js
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm ci
+          npm run build
+          npm publish --access restricted
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            python/dist/*
