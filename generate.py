@@ -20,18 +20,28 @@ script twice in a row produces no diff on the second run.
 
 Usage
 -----
-    python generate.py            # write the generated files
-    python generate.py --check    # exit 1 if anything would change (CI)
+    python generate.py            # write the generated files from the local enums.json
+    python generate.py --check    # exit 1 if anything would change (CI; never hits the network)
+    python generate.py --sync     # pull enums.json + VERSION from the published URL, then generate
+
+The ``--sync`` flow is how a change authored in the admin Enum Registry (a DB UI that
+publishes the canonical body to ``/api/v1/public/enums.json``) reaches this repo: it
+rewrites the two authored files from the URL, after which the ordinary generate → commit →
+tag release path takes over unchanged. ``--sync`` is the *only* mode that touches the network;
+a bare run and ``--check`` stay offline so CI's dirty-tree guard is unaffected.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parent
 ENUMS_JSON = ROOT / "enums.json"
@@ -40,6 +50,12 @@ PY_ENUMS = ROOT / "python" / "localoy_shared" / "enums.py"
 PY_INIT = ROOT / "python" / "localoy_shared" / "__init__.py"
 TS_ENUMS = ROOT / "js" / "src" / "enums.ts"
 JS_PACKAGE_JSON = ROOT / "js" / "package.json"
+
+# The published-body key carrying the version. generate.py already skips every
+# "$"-prefixed key when loading enums, so the URL can ship the version and the
+# enum map in one document; --sync lifts it back out into the VERSION file.
+VERSION_KEY = "$version"
+FETCH_TIMEOUT_SECONDS = 15
 
 PY_HEADER = "# AUTO-GENERATED FROM enums.json — DO NOT EDIT"
 TS_HEADER = "// AUTO-GENERATED FROM enums.json — DO NOT EDIT"
@@ -151,6 +167,51 @@ def load_enums(path: Path = ENUMS_JSON) -> list[EnumSpec]:
     if not specs:
         raise SpecError(f"{path.name} defines no enums")
     return specs
+
+
+def _version_tuple(version: str) -> tuple[int, int, int]:
+    major, minor, patch = (int(part) for part in version.split("."))
+    return (major, minor, patch)
+
+
+def fetch_remote_enums(url: str) -> tuple[dict[str, object], str]:
+    """Fetch the published enums body from ``url`` → (enum map, version).
+
+    The body is the same shape ``enums.json`` has, plus a ``$version`` key and
+    optional ``$schema`` — exactly what ``/api/v1/public/enums.json`` serves.
+    The version is split back out (it belongs in the VERSION file, never inside
+    enums.json), the ``$``-prefixed metadata keys are dropped, and the remaining
+    enum map is returned in the order the server sent it. Any transport or shape
+    problem raises ``SpecError`` so ``--sync`` fails as loudly as a bad file.
+    """
+    request = Request(url, headers={"User-Agent": "localoy-shared/generate.py"})
+    try:
+        with urlopen(request, timeout=FETCH_TIMEOUT_SECONDS) as response:
+            if response.status != 200:
+                raise SpecError(f"{url} returned HTTP {response.status}")
+            payload = response.read()
+    except URLError as err:
+        raise SpecError(f"could not fetch {url}: {err.reason}") from err
+    except TimeoutError as err:
+        raise SpecError(f"timed out fetching {url}") from err
+
+    try:
+        body = json.loads(payload)
+    except json.JSONDecodeError as err:
+        raise SpecError(f"{url} did not return valid JSON: {err}") from err
+    if not isinstance(body, dict):
+        raise SpecError(f"{url} must return a JSON object mapping enum name -> values")
+
+    version = body.get(VERSION_KEY)
+    if not isinstance(version, str) or not VERSION_RE.fullmatch(version):
+        raise SpecError(
+            f"published body from {url} is missing a valid {VERSION_KEY!r} (got {version!r})"
+        )
+
+    enum_map = {key: value for key, value in body.items() if not key.startswith("$")}
+    if not enum_map:
+        raise SpecError(f"published body from {url} defines no enums")
+    return enum_map, version
 
 
 def _validate_values(name: str, values: object) -> list[str]:
@@ -276,16 +337,71 @@ def sync(path: Path, content: str, *, check: bool) -> bool:
     return True
 
 
+def sync_from_url(url: str, *, allow_downgrade: bool) -> None:
+    """Rewrite the two authored files (enums.json, VERSION) from a published URL.
+
+    Writes through the same idempotent ``sync()`` the generator uses, so a
+    ``--sync`` against an unchanged remote body produces no diff. Refuses to move
+    VERSION backwards unless explicitly allowed — a stale snapshot must not
+    silently roll the repo back to an older release.
+    """
+    enum_map, remote_version = fetch_remote_enums(url)
+
+    if VERSION_FILE.exists():
+        current = VERSION_FILE.read_text(encoding="utf-8").strip()
+        if VERSION_RE.fullmatch(current) and _version_tuple(remote_version) < _version_tuple(current):
+            if not allow_downgrade:
+                raise SpecError(
+                    f"published version {remote_version} is older than the committed "
+                    f"VERSION {current}; pass --allow-version-downgrade to override"
+                )
+
+    # enums.json holds only the enum map — VERSION stays the single version
+    # declaration, so the "$version" key is materialised there and nowhere else.
+    enums_text = json.dumps(enum_map, indent=2, ensure_ascii=False) + "\n"
+    wrote_enums = sync(ENUMS_JSON, enums_text, check=False)
+    wrote_version = sync(VERSION_FILE, remote_version + "\n", check=False)
+
+    print(f"synced from {url}")
+    print(f"  enums.json: {'updated' if wrote_enums else 'unchanged'}")
+    print(f"  VERSION:    {'updated → ' + remote_version if wrote_version else 'unchanged (' + remote_version + ')'}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "--check",
         action="store_true",
-        help="do not write; exit 1 if any generated file is out of date",
+        help="do not write; exit 1 if any generated file is out of date (offline; for CI)",
+    )
+    parser.add_argument(
+        "--sync",
+        action="store_true",
+        help="fetch enums.json + VERSION from the published URL, then generate",
+    )
+    parser.add_argument(
+        "--url",
+        help="published enums URL for --sync (falls back to the ENUMS_URL env var)",
+    )
+    parser.add_argument(
+        "--allow-version-downgrade",
+        action="store_true",
+        help="permit --sync to move VERSION backwards (default: refuse)",
     )
     args = parser.parse_args(argv)
 
+    # --check must stay hermetic and offline (it is CI's dirty-tree guard);
+    # --sync deliberately reaches the network. Doing both at once is incoherent.
+    if args.check and args.sync:
+        parser.error("--check and --sync are mutually exclusive")
+
     try:
+        if args.sync:
+            url = args.url or os.environ.get("ENUMS_URL")
+            if not url:
+                raise SpecError("--sync needs a URL: pass --url or set the ENUMS_URL env var")
+            sync_from_url(url, allow_downgrade=args.allow_version_downgrade)
+
         version = load_version()
         specs = load_enums()
         outputs = {
