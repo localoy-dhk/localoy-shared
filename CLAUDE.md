@@ -8,10 +8,40 @@ This file is the working contract for editing **this** repo.
 
 ---
 
-## The one rule
+## Where enums are authored now
 
-**`enums.json` is the ONLY place enum values are authored.** Everything else
-that contains an enum value is generated output. Never hand-edit:
+Enum values are authored in the **Enum Registry** — an admin-only UI
+(`admin-portal` → *Enum Registry*) backed by the **admin backend**
+(`admin-portal-backend/src/modules/enum-registry/`, port 4100, its own DB).
+Editing there and **publishing** freezes an immutable, versioned release served
+verbatim at `GET /api/v1/public/enums.json` (a bare enums map with a `$version`
+key).
+
+`enums.json` + `VERSION` in this repo are then **synced from that URL**, not
+hand-edited:
+
+```bash
+ENUMS_URL=https://<admin-backend>/api/v1/public/enums.json make sync   # = generate.py --sync
+# review the enums.json / VERSION diff, commit, PR, then tag as usual
+```
+
+`generate.py --sync` fetches the published body, writes `enums.json` (the enum
+map) and `VERSION` (from `$version`), then regenerates. `--sync` is the ONLY
+mode that touches the network; a bare `generate.py` and `--check` stay offline,
+so CI's dirty-tree guard is unchanged and **git remains the release
+system-of-record**. The Enum Registry's publish endpoint mirrors the same
+PascalCase/collision validation and the SemVer classifier below, and hard-blocks
+a version that under-states the change — so the URL can only ever serve a body
+this generator accepts.
+
+Editing `enums.json` by hand still works (it is the generator's input) and is
+fine for an offline change, but the DB is the canonical authoring surface; if
+both move, reconcile with a `--sync`.
+
+## The one rule (still holds)
+
+**`enums.json` is the ONLY place `generate.py` reads enum values from**, and
+everything it writes is generated output. Never hand-edit:
 
 | Generated file | Written by |
 | --- | --- |

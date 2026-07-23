@@ -153,7 +153,24 @@ membership check).
 
 ## Changing an enum
 
-1. Edit **`enums.json`** — the only file where values are authored.
+Values are normally authored in the **Enum Registry** admin UI and published to
+`GET /api/v1/public/enums.json`; this repo then pulls that release in:
+
+```bash
+ENUMS_URL=https://<admin-backend>/api/v1/public/enums.json make sync
+# (= python generate.py --sync — fetches the published body, rewrites enums.json
+#    + VERSION from it, then regenerates. Only --sync touches the network.)
+```
+
+Review the `enums.json` / `VERSION` diff, commit, open a PR, then tag (below).
+`--sync` refuses to move `VERSION` backwards unless you pass
+`--allow-version-downgrade`. Because CI still runs `generate.py --check` against
+the **committed** files and `semver_check.py` still re-derives the bump from the
+git diff, the release gate stays exactly where it was — in git.
+
+To edit offline instead (no registry):
+
+1. Edit **`enums.json`** — the file the generator reads values from.
 2. Bump **`VERSION`** per the rules below.
 3. Run `python generate.py` (or `make generate`) and commit the generated files.
 4. Open a PR. `validate.yml` re-generates and fails if your tree is dirty, then
