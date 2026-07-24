@@ -3,7 +3,8 @@
     "indoor",
     "outdoor",
     "hybrid",
-    "other"
+    "other",
+    "testing another one"
   ],
   "EventStatus": [
     "draft",

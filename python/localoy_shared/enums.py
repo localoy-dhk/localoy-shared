@@ -23,6 +23,7 @@ class EventType(str, Enum):
     OUTDOOR = "outdoor"
     HYBRID = "hybrid"
     OTHER = "other"
+    TESTING_ANOTHER_ONE = "testing another one"
 
 
 class EventStatus(str, Enum):

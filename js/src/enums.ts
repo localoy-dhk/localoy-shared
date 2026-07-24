@@ -6,6 +6,7 @@ export enum EventType {
   Outdoor = 'outdoor',
   Hybrid = 'hybrid',
   Other = 'other',
+  TestingAnotherOne = 'testing another one',
 }
 
 export enum EventStatus {
