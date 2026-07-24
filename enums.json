@@ -1,4 +1,42 @@
 {
-  "EventType": ["indoor", "outdoor"],
-  "EventStatus": ["draft", "published", "cancelled"]
+  "EventType": [
+    "indoor",
+    "outdoor",
+    "hybrid",
+    "other"
+  ],
+  "EventStatus": [
+    "draft",
+    "published",
+    "cancelled"
+  ],
+  "CuisineType": {
+    "description": "Cuisine categories a dining partner can tag.",
+    "values": [
+      "AFGHAN",
+      "BBQ",
+      "CHINESE",
+      "INDIAN",
+      "KOREAN",
+      "MEXICAN",
+      "PAKISTANI",
+      "TURKISH",
+      "AMERICAN",
+      "BAKERY",
+      "CONTINENTAL",
+      "ITALIAN",
+      "LEBANESE",
+      "MIDDLE_EASTERN",
+      "SEAFOOD",
+      "VEGETARIAN",
+      "ARABIAN",
+      "BANGLADESHI",
+      "DESSERTS",
+      "JAPANESE",
+      "MEDITERRANEAN",
+      "NEPALESE",
+      "THAI",
+      "Shagato"
+    ]
+  }
 }

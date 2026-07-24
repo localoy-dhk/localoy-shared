@@ -1,6 +1,6 @@
 {
   "name": "@localoy-dhk/shared",
-  "version": "0.1.0",
+  "version": "0.5.0",
   "description": "Canonical shared enums for the Localoy microservices ecosystem.",
   "license": "UNLICENSED",
   "private": false,
