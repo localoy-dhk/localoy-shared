@@ -59,4 +59,3 @@ class CuisineType(str, Enum):
     MEDITERRANEAN = "MEDITERRANEAN"
     NEPALESE = "NEPALESE"
     THAI = "THAI"
-    SHAGATO = "Shagato"
