@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 PY ?= python3
 
-.PHONY: help generate sync check test build build-python build-js clean release-check
+.PHONY: help generate sync check test build build-python build-js clean release-check release
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -12,6 +12,9 @@ generate: ## Regenerate both packages from enums.json + VERSION
 
 sync: ## Pull enums.json + VERSION from the published URL ($$ENUMS_URL or --url), then generate
 	$(PY) generate.py --sync
+
+release: ## Guided post-publish release: sync → review → commit → tag → push (one command)
+	@ENUMS_URL="$(ENUMS_URL)" ./scripts/release.sh
 
 check: ## Fail if any generated file is out of date (what CI runs)
 	$(PY) generate.py --check
