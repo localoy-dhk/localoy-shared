@@ -42,4 +42,5 @@ export enum CuisineType {
   Mediterranean = 'MEDITERRANEAN',
   Nepalese = 'NEPALESE',
   Thai = 'THAI',
+  HoneyNut = 'HoneyNut',
 }
